@@ -21,7 +21,7 @@ import {
 } from "@/lib/icons";
 import { addDays, key } from "@/lib/date";
 import { getDb } from "@/lib/firebase";
-import { useAuth } from "@/lib/auth";
+import { isRealUser, useAuth } from "@/lib/auth";
 
 export type HabitIconId = "book" | "pencil" | "run" | "dumbbell" | "drop" | "moon";
 
@@ -128,7 +128,7 @@ const sortHabits = (habits: Habit[]) =>
   [...habits].sort((a, b) => a.order - b.order);
 
 export function HabitProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isGuest, loading: authLoading } = useAuth();
   const [snap, setSnap] = useState<Snapshot>(EMPTY);
   const [ready, setReady] = useState(false);
   const uid = user?.uid ?? null;
@@ -390,7 +390,7 @@ export function HabitProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const db = getDb();
     // Guests stay off the leaderboard: they have no name to show.
-    if (!db || !uid || !ready || !user || user.isAnonymous) return;
+    if (!db || !uid || !ready || isGuest || !isRealUser(user)) return;
     void set(ref(db, `leaderboard/${uid}`), {
       name: user.displayName ?? user.email?.split("@")[0] ?? "Anonymous",
       photoURL: user.photoURL ?? null,
@@ -400,7 +400,9 @@ export function HabitProvider({ children }: { children: ReactNode }) {
     }).catch(() => {
       /* best-effort: the leaderboard is never worth blocking the UI for */
     });
-  }, [uid, user, ready, active, best]);
+  // isGuest is the dep that actually flips when a guest upgrades: reload()
+  // mutates the User in place, so `user` keeps the same reference throughout.
+  }, [uid, user, isGuest, ready, active, best]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

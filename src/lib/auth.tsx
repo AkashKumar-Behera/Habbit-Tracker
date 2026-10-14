@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useReducer,
   useState,
   type ReactNode,
 } from "react";
@@ -58,10 +59,21 @@ function friendly(e: unknown): Error {
   return new Error(map[code] ?? (e as Error)?.message ?? "Kuch galat ho gaya.");
 }
 
+/**
+ * A user with an identity attached, rather than a bare guest.
+ *
+ * `isAnonymous` can't be trusted on its own: after linkWithCredential the
+ * in-memory user keeps reporting `true` until it is reloaded, so an upgraded
+ * guest would otherwise never get a profile or a leaderboard row.
+ */
+export function isRealUser(user: User | null | undefined): user is User {
+  return Boolean(user && (!user.isAnonymous || user.email || user.displayName));
+}
+
 /** Keeps the profile node in sync so the leaderboard has a name and photo. */
 async function writeProfile(user: User) {
   const db = getDb();
-  if (!db || user.isAnonymous) return;
+  if (!db || !isRealUser(user)) return;
   try {
     await update(ref(db, `users/${user.uid}/profile`), {
       name: user.displayName ?? user.email?.split("@")[0] ?? "Anonymous",
@@ -77,6 +89,17 @@ async function writeProfile(user: User) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(firebaseReady);
+  // Linking mutates the existing User object in place, so React needs a nudge.
+  const [rev, bump] = useReducer((n: number) => n + 1, 0);
+
+  const refreshUser = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    if (!auth?.currentUser) return;
+    await auth.currentUser.reload();
+    setUser(auth.currentUser);
+    bump();
+    await writeProfile(auth.currentUser);
+  }, []);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -100,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // A guest upgrading keeps their uid, so their habits come along.
       if (auth.currentUser?.isAnonymous) {
         await linkWithPopup(auth.currentUser, provider);
+        await refreshUser();
       } else {
         await signInWithPopup(auth, provider);
       }
@@ -113,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       throw friendly(e);
     }
-  }, []);
+  }, [refreshUser]);
 
   const signInEmail = useCallback(async (email: string, password: string) => {
     const auth = getFirebaseAuth();
@@ -134,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const cred = EmailAuthProvider.credential(email, password);
           const res = await linkWithCredential(auth.currentUser, cred);
           if (name) await updateProfile(res.user, { displayName: name });
-          await writeProfile(res.user);
+          await refreshUser();
           return;
         }
         const res = await createUserWithEmailAndPassword(auth, email, password);
@@ -144,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw friendly(e);
       }
     },
-    [],
+    [refreshUser],
   );
 
   const continueAsGuest = useCallback(async () => {
@@ -167,14 +191,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       enabled: firebaseReady,
-      isGuest: Boolean(user?.isAnonymous),
+      isGuest: Boolean(user) && !isRealUser(user),
       signInGoogle,
       signInEmail,
       signUpEmail,
       continueAsGuest,
       logOut,
     }),
-    [user, loading, signInGoogle, signInEmail, signUpEmail, continueAsGuest, logOut],
+    [user, rev, loading, signInGoogle, signInEmail, signUpEmail, continueAsGuest, logOut],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
