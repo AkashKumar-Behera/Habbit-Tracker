@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AuthSheet } from "@/components/AuthSheet";
+import { SettingsSheet } from "@/components/SettingsSheet";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAuth } from "@/lib/auth";
 import {
@@ -48,6 +49,7 @@ export function Sidebar() {
   const { theme, toggle } = useTheme();
   const { user, isGuest, logOut, enabled } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const signedIn = Boolean(user) && !isGuest;
   const displayName =
@@ -83,7 +85,14 @@ export function Sidebar() {
             }}
           />
           <Row item={{ label: "Leaderboard", icon: IconChart, chevron: true }} />
-          <Row item={{ label: "Settings", icon: IconSettings, chevron: true }} />
+          <Row
+            item={{
+              label: "Settings",
+              icon: IconSettings,
+              chevron: true,
+              onClick: () => setSettingsOpen(true),
+            }}
+          />
         </nav>
 
         <div className="mt-auto flex flex-col gap-2 pt-8">
@@ -123,6 +132,7 @@ export function Sidebar() {
       </div>
 
       <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }

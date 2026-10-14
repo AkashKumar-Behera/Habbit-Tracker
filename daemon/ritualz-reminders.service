@@ -1,0 +1,28 @@
+# systemd unit. Copy to /etc/systemd/system/ritualz-reminders.service, then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ritualz-reminders
+#   journalctl -u ritualz-reminders -f
+[Unit]
+Description=Ritualz habit reminder daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ritualz
+WorkingDirectory=/opt/ritualz/daemon
+Environment=FIREBASE_SERVICE_ACCOUNT=/etc/ritualz/service-account.json
+Environment=FIREBASE_DATABASE_URL=https://arise-699d5-default-rtdb.firebaseio.com
+ExecStart=/usr/bin/node send-reminders.mjs
+Restart=always
+RestartSec=10
+
+# The key is the only secret here; keep the process away from everything else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/ritualz
+
+[Install]
+WantedBy=multi-user.target

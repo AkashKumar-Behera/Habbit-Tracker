@@ -89,3 +89,52 @@ tabhi valid hai jab us habit ka node sach me exist karta ho.
 Firebase configure na ho, ya user logged out ho, to app `localStorage` pe chalta hai.
 Pehli baar sign-in pe local habits RTDB me push ho jaati hain (sirf tab jab remote khaali ho).
 Guest (anonymous) user Google/Email se link karega to uska uid wahi rehta hai — data saath aata hai.
+
+---
+
+## Reminders (push notifications)
+
+Web pe **scheduled local notifications possible nahi hain** — Notification Triggers
+API abandon ho chuki hai, aur service worker background me timer nahi chala sakta.
+Isliye reminders server se Web Push ke through jaate hain.
+
+### Kaise kaam karta hai
+
+```
+reminders/{uid}: { enabled, time: "20:00", tz: "Asia/Kolkata", lastSent: "2026-10-14" }
+```
+
+Client yeh node likhta hai (Settings → Daily reminder). Daemon har minute sirf
+`reminders` node padhta hai — poore users nahi — aur jin ka local time aa gaya ho
+unki aaj ki pending habits check karke FCM bhejta hai. `lastSent` se ek din me
+ek hi notification jaata hai.
+
+### Daemon chalao
+
+Apne server pe:
+
+```bash
+cd daemon
+npm install
+FIREBASE_SERVICE_ACCOUNT=/etc/ritualz/service-account.json \
+FIREBASE_DATABASE_URL=https://arise-699d5-default-rtdb.firebaseio.com \
+node send-reminders.mjs
+```
+
+Pehle `DRY_RUN=1` ke saath chala kar dekh lo — bhejega nahi, sirf log karega.
+
+systemd ke liye `daemon/ritualz-reminders.service` ready hai:
+
+```bash
+sudo cp daemon/ritualz-reminders.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now ritualz-reminders
+journalctl -u ritualz-reminders -f
+```
+
+Service account us server pe `chmod 600` ke saath rakhna, repo ke andar nahi.
+
+### Zaroori
+
+- **VAPID key chahiye** warna toggle "VAPID key set nahi hai" dega
+- **iOS**: web push tabhi chalega jab PWA home screen pe install ho (iOS 16.4+)
+- Daemon stale FCM tokens apne aap prune kar deta hai

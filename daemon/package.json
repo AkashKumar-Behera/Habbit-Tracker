@@ -1,0 +1,16 @@
+{
+  "name": "ritualz-reminder-daemon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sends Ritualz daily habit reminders over FCM.",
+  "scripts": {
+    "start": "node send-reminders.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
